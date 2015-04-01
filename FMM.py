@@ -6,20 +6,28 @@ import operator as op
 
 def FMM(t, s, f, r, binom):
 
-    n = len(t)
-    L = int(math.log(n, 2))
-    p = [0 for _ in range(n)]
+    ''''
+    t = n-vector of targets
+    s = n-vector of sources
+    f = n-vector of points
+    r = number of terms in Taylor expansion
+    binom = Pascal's triangle for fast binomial coefficient lookup
+    '''
+
+    n = range(len(t))
+    L = int(math.log(len(t), 2))
+    p = [0 for _ in n]
     sDict = {}
     tDict = {}
     cellDict = {}
-    powers = range(r+1)
+    r = range(r+1)
     
     'main loop'
-    for l in range(2, L+1):
+    for l in range(2, L-1):
         power = int(pow(2,l))
         interval = 1.0/power
         cells = range(power)
-        
+
         sDict = {key: 0 for key in s}
         tDict = {key: 0 for key in t}
         cellDict = {key: [[],[]] for key in cells}
@@ -34,49 +42,50 @@ def FMM(t, s, f, r, binom):
             sDict[j] = cellNum
             cellDict[cellNum][0].append(j)
 
+        'mathemagic starts here'
         'construct moments'
-        S = [[0 for i in powers] for l in cells]
-        for cell in cells:
-            sigma = interval*cell + (interval/2)
-            sources = cellDict[cell][0]
-            for m in powers:
-                for s_j in sources:
-                    j = s.index(s_j)
-                    S[cell][m] += pow(s_j - sigma, m) * f[j]
-                    
-        #tic = time.clock()
+        S = [[0 for i in r] for l in cells]
+        for j in n:
+            s_j = s[j]
+            scell = sDict[s_j]
+            sigma = interval*scell + (interval/2)
+            for m in r:
+                S[scell][m] += pow(s_j - sigma, m) * f[j]
+
         'calculate interactions'
-        T = [[0 for i in powers] for j in cells]
+        T = [[0 for i in r] for j in cells]
         for tcell in cells:
-            for scell in cells:
+            possibles = [c for c in range(tcell-3, tcell+4) if c >= 0 and c < power]
+            for scell in possibles:
                 if abs(tcell-scell) > 1 and abs(tcell/2 - scell/2) <= 1:
                     sigma = interval*scell + interval/2
                     tau = interval*tcell + interval/2
-                    for m in powers:
-                        for k in powers:
-                            combo = binom[m+k][k]
-                            center = pow(tau-sigma, -m-k-1)
-                            T[tcell][m] += combo * center *S[scell][k]
-        #print time.clock() - tic
-       
+                    for m in r:
+                        for k in r:
+                            T[tcell][m] += binom[m+k][k] * pow(tau-sigma, -m-k-1) *S[scell][k]
+                            
         'increment return values'
-        for t_i in t:
-            i = t.index(t_i)
+        for i in n:
+            t_i = t[i]
             tcell = tDict[t_i]
             tau = interval*tcell + interval/2
-            for m in powers:
-                p[i] += T[tcell][m] * pow(t_i - tau, m)
+            for m in r:
+                p[i] += T[tcell][m] * pow(tau - t_i, m)
 
     'local interactions'
-    for t_i in t:
+    for i in n:
+        t_i = t[i]
         tcell = tDict[t_i]
-        i = t.index(t_i)
         for scell in range(tcell-1, tcell+2):
             if scell == -1 or scell == power:
                 continue
-            for s_j in cellDict[scell][0]:
+            sources = cellDict[scell][0]
+            if not sources:
+                continue
+            for s_j in sources:
                 j = s.index(s_j)
                 p[i] += f[j]/(t_i - s_j)
+                
     return p
 
 def cauchy(t, s):
@@ -113,7 +122,9 @@ if __name__ == "__main__":
     t20List = []
     t30List = []
     timeList = []
-    errorList = []
+    error10List = []
+    error20List = []
+    error30List = []
     binom = pascal(61)
     
     for l in range(7, 14):
@@ -153,12 +164,15 @@ if __name__ == "__main__":
         error20 = twonorm([abs(p20[i] - exact[i]) for i in range(n)])
         error30 = twonorm([abs(p30[i] - exact[i]) for i in range(n)])
         norm = twonorm(exact)
-        maxError = max(error10/norm, error20/norm, error30/norm)
-        errorList.append(maxError)
+        error10List.append(error10/norm)
+        error20List.append(error20/norm)
+        error30List.append(error30/norm)
 
     print nList
     print t10List
     print t20List
     print t30List
     print timeList
-    print errorList
+    print error10List
+    print error20List
+    print error30List
